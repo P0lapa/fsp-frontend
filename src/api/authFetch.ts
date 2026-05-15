@@ -1,0 +1,21 @@
+import keycloak from '../auth/keycloak'
+
+export async function authFetch(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+): Promise<Response> {
+  if (keycloak.authenticated) {
+    await keycloak.updateToken(30)
+  }
+
+  const headers = new Headers(init.headers)
+
+  if (keycloak.token) {
+    headers.set('Authorization', `Bearer ${keycloak.token}`)
+  }
+
+  return fetch(input, {
+    ...init,
+    headers,
+  })
+}
