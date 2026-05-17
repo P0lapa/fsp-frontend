@@ -1,0 +1,393 @@
+<style>
+  .theme-grid {
+    display: grid;
+    gap: 24px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+
+  .theme-card {
+    cursor: pointer;
+  }
+
+  .theme-preview {
+    border-radius: 18px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.08);
+  }
+
+  .theme-shell {
+    min-height: 400px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .theme-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-radius: 14px;
+    font: 700 13px/1.2 "JetBrains Mono", monospace;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .theme-hero {
+    padding: 22px 20px;
+    border-radius: 16px;
+    display: grid;
+    gap: 12px;
+  }
+
+  .theme-kicker {
+    font: 700 11px/1.3 "JetBrains Mono", monospace;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .theme-title {
+    font: 700 22px/1.08 "Press Start 2P", monospace;
+  }
+
+  .theme-copy {
+    font: 500 14px/1.55 "IBM Plex Mono", monospace;
+    max-width: 32ch;
+  }
+
+  .theme-button {
+    display: inline-flex;
+    width: fit-content;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font: 700 14px/1.1 "JetBrains Mono", monospace;
+    border: 1px solid currentColor;
+  }
+
+  .theme-controls {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .theme-control {
+    padding: 10px 12px;
+    border-radius: 10px;
+    font: 600 13px/1.2 "JetBrains Mono", monospace;
+    border: 1px solid currentColor;
+  }
+
+  .theme-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .contest-card {
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+  }
+
+  .contest-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    font: 700 16px/1 "JetBrains Mono", monospace;
+    text-transform: uppercase;
+  }
+
+  .contest-body {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .contest-meta {
+    font: 600 12px/1.35 "JetBrains Mono", monospace;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .contest-name {
+    font: 500 20px/1.16 "IBM Plex Mono", monospace;
+  }
+
+  .contest-stack {
+    font: 700 13px/1.3 "Press Start 2P", monospace;
+  }
+
+  .contest-cta {
+    display: inline-flex;
+    width: fit-content;
+    padding: 10px 12px;
+    border-radius: 4px;
+    font: 700 14px/1.1 "JetBrains Mono", monospace;
+    border: 1px solid currentColor;
+  }
+
+  .palette {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+  }
+
+  .rose-a .theme-shell {
+    background: linear-gradient(180deg, #f6eeeb 0%, #ebdfdb 100%);
+  }
+  .rose-a .theme-header,
+  .rose-a .theme-control,
+  .rose-a .contest-card {
+    background: #fbf5f3;
+    color: #3e3336;
+  }
+  .rose-a .theme-hero,
+  .rose-a .contest-body {
+    background: #f7efec;
+    color: #43383b;
+  }
+  .rose-a .theme-kicker,
+  .rose-a .contest-stack {
+    color: #8b4d67;
+  }
+  .rose-a .theme-title {
+    color: #7f3f5d;
+  }
+  .rose-a .theme-button,
+  .rose-a .contest-top {
+    background: #a55073;
+    color: #fff5f7;
+  }
+  .rose-a .contest-name {
+    color: #4b3e42;
+  }
+  .rose-a .contest-cta {
+    background: #f0d6df;
+    color: #6d3550;
+  }
+
+  .rose-b .theme-shell {
+    background: linear-gradient(180deg, #fbf3f1 0%, #efe1dd 100%);
+  }
+  .rose-b .theme-header,
+  .rose-b .theme-control,
+  .rose-b .contest-card {
+    background: #fff9f7;
+    color: #41363a;
+  }
+  .rose-b .theme-hero,
+  .rose-b .contest-body {
+    background:
+      radial-gradient(circle at top right, rgba(168, 78, 121, 0.12), transparent 34%),
+      #fbf2ef;
+    color: #463a3f;
+  }
+  .rose-b .theme-kicker,
+  .rose-b .contest-stack {
+    color: #9a597a;
+  }
+  .rose-b .theme-title {
+    color: #914b6c;
+  }
+  .rose-b .theme-button,
+  .rose-b .contest-top {
+    background: #c56a8f;
+    color: #fff7fa;
+  }
+  .rose-b .contest-name {
+    color: #4f4347;
+  }
+  .rose-b .contest-cta {
+    background: #fff7fa;
+    color: #8a4968;
+  }
+
+  .rose-c .theme-shell {
+    background: linear-gradient(180deg, #f0e5df 0%, #e5d4cf 100%);
+  }
+  .rose-c .theme-header,
+  .rose-c .theme-control,
+  .rose-c .contest-card {
+    background: #f8efeb;
+    color: #4a3f42;
+  }
+  .rose-c .theme-hero,
+  .rose-c .contest-body {
+    background: #f1e5df;
+    color: #504346;
+  }
+  .rose-c .theme-kicker,
+  .rose-c .contest-stack {
+    color: #7f5a6c;
+  }
+  .rose-c .theme-title {
+    color: #70475a;
+  }
+  .rose-c .theme-button,
+  .rose-c .contest-top {
+    background: #7a3f59;
+    color: #fdf3f6;
+  }
+  .rose-c .contest-name {
+    color: #55484c;
+  }
+  .rose-c .contest-cta {
+    background: #dcc0c9;
+    color: #5f3347;
+  }
+</style>
+
+<h2>Светлая тема: linux rose / dusty terminal</h2>
+<p class="subtitle">
+  Здесь я увёл светлую тему в пыльно-розовый, малиново-бордовый и слегка linux-like терминальный вайб.
+  Смотри, чувствуется ли здесь что-то интереснее кремового направления.
+</p>
+
+<div class="cards theme-grid">
+  <div class="card theme-card" data-choice="linux-rose-a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="theme-preview rose-a">
+        <div class="theme-shell">
+          <div class="theme-header">
+            <span>&gt;_ TERMINAL_KODA</span>
+            <span>COMPETITIONS</span>
+          </div>
+          <div class="theme-hero">
+            <div class="theme-kicker">ROOT EXECUTE / DUSTY LINUX</div>
+            <div class="theme-title">РАСПИСАНИЕ</div>
+            <div class="theme-title" style="padding-left:18px;">СОРЕВНОВАНИЙ_</div>
+            <div class="theme-copy">Самый спокойный розовый вариант: пыльно-терминальный, мягкий и не уходит в “сладость”.</div>
+            <div class="theme-button">[К соревнованиям]</div>
+          </div>
+          <div class="theme-controls">
+            <div class="theme-control">Поиск</div>
+            <div class="theme-control">Уровень</div>
+            <div class="theme-control">Статус</div>
+          </div>
+          <div class="theme-list">
+            <div class="contest-card">
+              <div class="contest-top"><span>28/04/2026</span><span>КОМАНДА: 3</span></div>
+              <div class="contest-body">
+                <div class="contest-meta">Приём заявок: до 24/04/2026<br>LEVEL: Medium</div>
+                <div class="contest-name">База данных сложных банковских систем</div>
+                <div class="contest-stack">C++ / JAVA / SQL</div>
+                <div class="contest-cta">[Принять участие]</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Вариант A</h3>
+      <p>Самый безопасный вход в розовый вайб. Тема уже отличается от кремовой, но не выглядит чужой.</p>
+      <div class="palette">
+        <div class="swatch" style="background:#f6eeeb"></div>
+        <div class="swatch" style="background:#fbf5f3"></div>
+        <div class="swatch" style="background:#8b4d67"></div>
+        <div class="swatch" style="background:#a55073"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card theme-card" data-choice="linux-rose-b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="theme-preview rose-b">
+        <div class="theme-shell">
+          <div class="theme-header">
+            <span>&gt;_ TERMINAL_KODA</span>
+            <span>COMPETITIONS</span>
+          </div>
+          <div class="theme-hero">
+            <div class="theme-kicker">UBUNTU-LIKE / ROSE TERMINAL</div>
+            <div class="theme-title">РАСПИСАНИЕ</div>
+            <div class="theme-title" style="padding-left:18px;">СОРЕВНОВАНИЙ_</div>
+            <div class="theme-copy">Более явный magenta-акцент. Ближе к тому самому linux/ubuntu-ассоциативному тону.</div>
+            <div class="theme-button">[К соревнованиям]</div>
+          </div>
+          <div class="theme-controls">
+            <div class="theme-control">Поиск</div>
+            <div class="theme-control">Уровень</div>
+            <div class="theme-control">Статус</div>
+          </div>
+          <div class="theme-list">
+            <div class="contest-card">
+              <div class="contest-top"><span>28/04/2026</span><span>КОМАНДА: 3</span></div>
+              <div class="contest-body">
+                <div class="contest-meta">Приём заявок: до 24/04/2026<br>LEVEL: Medium</div>
+                <div class="contest-name">База данных сложных банковских систем</div>
+                <div class="contest-stack">C++ / JAVA / SQL</div>
+                <div class="contest-cta">[Принять участие]</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Вариант B</h3>
+      <p>Самый “linux rose”. Сильнее уходит в светлую magenta-terminal эстетику и может оказаться самым фирменным.</p>
+      <div class="palette">
+        <div class="swatch" style="background:#fbf3f1"></div>
+        <div class="swatch" style="background:#fff9f7"></div>
+        <div class="swatch" style="background:#9a597a"></div>
+        <div class="swatch" style="background:#c56a8f"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card theme-card" data-choice="linux-rose-c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="theme-preview rose-c">
+        <div class="theme-shell">
+          <div class="theme-header">
+            <span>&gt;_ TERMINAL_KODA</span>
+            <span>COMPETITIONS</span>
+          </div>
+          <div class="theme-hero">
+            <div class="theme-kicker">SAND + MAGENTA / SYSTEM UI</div>
+            <div class="theme-title">РАСПИСАНИЕ</div>
+            <div class="theme-title" style="padding-left:18px;">СОРЕВНОВАНИЙ_</div>
+            <div class="theme-copy">Самый зрелый и приглушённый. Больше песка и серого, меньше “розового шума”.</div>
+            <div class="theme-button">[К соревнованиям]</div>
+          </div>
+          <div class="theme-controls">
+            <div class="theme-control">Поиск</div>
+            <div class="theme-control">Уровень</div>
+            <div class="theme-control">Статус</div>
+          </div>
+          <div class="theme-list">
+            <div class="contest-card">
+              <div class="contest-top"><span>28/04/2026</span><span>КОМАНДА: 3</span></div>
+              <div class="contest-body">
+                <div class="contest-meta">Приём заявок: до 24/04/2026<br>LEVEL: Medium</div>
+                <div class="contest-name">База данных сложных банковских систем</div>
+                <div class="contest-stack">C++ / JAVA / SQL</div>
+                <div class="contest-cta">[Принять участие]</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Вариант C</h3>
+      <p>Более спокойная смесь песочного и бордово-розового. Меньше wow, но может быть долговечнее по вкусу.</p>
+      <div class="palette">
+        <div class="swatch" style="background:#f0e5df"></div>
+        <div class="swatch" style="background:#f8efeb"></div>
+        <div class="swatch" style="background:#7f5a6c"></div>
+        <div class="swatch" style="background:#7a3f59"></div>
+      </div>
+    </div>
+  </div>
+</div>

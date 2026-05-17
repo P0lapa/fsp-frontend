@@ -4,16 +4,16 @@ import './index.css'
 import App from './App'
 import { AuthProvider } from './auth/KeycloakProvider'
 import { BrowserRouter } from 'react-router-dom'
+import { ThemeProvider } from './theme/ThemeProvider'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {/* <BrowserRouter>
-      <App />
-    </BrowserRouter> */}
     <BrowserRouter>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   </StrictMode>,
 )

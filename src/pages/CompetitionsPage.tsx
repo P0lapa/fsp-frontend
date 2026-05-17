@@ -8,7 +8,10 @@ import {
 import { CompetitionCard } from '../components/competitions/CompetitionCard'
 import { CompetitionsFilters } from '../components/competitions/CompetitionsFilters'
 import { CompetitionsHero } from '../components/competitions/CompetitionsHero'
-import { COMPETITION_LANGUAGE_GROUPS } from '../components/competitions/competitionPresentation'
+import {
+  COMPETITION_LANGUAGE_GROUPS,
+  getContestTimestamp,
+} from '../components/competitions/competitionPresentation'
 import { SectionFolderLabel } from '../components/home/SectionFolderLabel'
 
 type CompetitionsState =
@@ -34,8 +37,7 @@ export function CompetitionsPage() {
       .then((contests) => {
         if (isMounted) {
           const sortedContests = [...contests].sort(
-            (left, right) =>
-              new Date(right.startAt).getTime() - new Date(left.startAt).getTime(),
+            (left, right) => getContestTimestamp(right.startAt) - getContestTimestamp(left.startAt),
           )
 
           setState({ status: 'ready', contests: sortedContests })
@@ -124,7 +126,7 @@ export function CompetitionsPage() {
         <div className="mb-8">
           <SectionFolderLabel path={String.raw`C:\SYSTEM_COMPETITIONS\ROOT-EXECUTE PROTOCOL_V2.EXE`} />
 
-          <div className="mb-4 font-press-start text-[18px] text-[#04CA37] sm:text-[22px]">
+          <div className="mb-4 font-press-start text-[18px] text-[var(--color-accent)] sm:text-[22px]">
             //СОРЕВНОВАНИЯ
           </div>
 
@@ -145,14 +147,14 @@ export function CompetitionsPage() {
             {Array.from({ length: 6 }, (_, index) => (
               <div
                 key={index}
-                className="h-[360px] animate-pulse rounded-[8px] border border-[#163120] bg-[#08110A]"
+                className="h-[360px] animate-pulse rounded-[8px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-soft)]"
               />
             ))}
           </div>
         ) : null}
 
         {state.status === 'error' ? (
-          <div className="border border-[#FF3B30] bg-[#180505] px-6 py-5 font-ibm text-lg text-[#FFD5D2]">
+          <div className="border border-[var(--color-danger)] bg-[color:color-mix(in_srgb,var(--color-surface)_84%,var(--color-danger)_16%)] px-6 py-5 font-ibm text-lg text-[var(--color-danger)]">
             {state.message}
           </div>
         ) : null}
@@ -172,7 +174,7 @@ export function CompetitionsPage() {
                     <button
                       type="button"
                       onClick={() => setVisibleCount((current) => current + LOAD_MORE_STEP)}
-                      className="border border-[#7F9F01] bg-[#C0F000] px-6 py-3 font-jetbrains text-lg font-bold text-[#111111] transition hover:translate-y-[-1px] hover:shadow-[0_0_24px_rgba(127,159,1,0.35)]"
+                      className="border border-[var(--color-acid)] bg-[var(--color-acid-strong)] px-6 py-3 font-jetbrains text-lg font-bold text-[var(--color-acid-contrast)] transition hover:translate-y-[-1px] hover:shadow-[var(--shadow-acid)]"
                     >
                       [Показать ещё]
                     </button>
@@ -180,7 +182,7 @@ export function CompetitionsPage() {
                 ) : null}
               </>
             ) : (
-              <div className="border border-[#1C3823] bg-[#071008] px-6 py-10 text-center font-ibm text-xl text-[#B7D0D8]">
+              <div className="border border-[var(--color-border-subtle)] bg-[var(--color-surface-soft)] px-6 py-10 text-center font-ibm text-xl text-[var(--color-text-muted)]">
                 По заданным фильтрам соревнования не найдены.
               </div>
             )}

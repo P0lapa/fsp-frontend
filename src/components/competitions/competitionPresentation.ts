@@ -20,8 +20,24 @@ export const COMPETITION_LANGUAGE_GROUPS: CompetitionLanguageGroup[] = [
   { key: 'kotlin', label: 'Kotlin', languages: ['KOTLIN'] },
 ]
 
-export function formatContestDate(date: string | null | undefined) {
+function getValidDate(date: string | null | undefined) {
   if (!date) {
+    return null
+  }
+
+  const parsedDate = new Date(date)
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return null
+  }
+
+  return parsedDate
+}
+
+export function formatContestDate(date: string | null | undefined) {
+  const parsedDate = getValidDate(date)
+
+  if (!parsedDate) {
     return '—'
   }
 
@@ -29,11 +45,13 @@ export function formatContestDate(date: string | null | undefined) {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
-  }).format(new Date(date))
+  }).format(parsedDate)
 }
 
 export function formatContestDateTime(date: string | null | undefined) {
-  if (!date) {
+  const parsedDate = getValidDate(date)
+
+  if (!parsedDate) {
     return '—'
   }
 
@@ -43,7 +61,11 @@ export function formatContestDateTime(date: string | null | undefined) {
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(date))
+  }).format(parsedDate)
+}
+
+export function getContestTimestamp(date: string | null | undefined) {
+  return getValidDate(date)?.getTime() ?? Number.NEGATIVE_INFINITY
 }
 
 export function getContestLevelLabel(level: ContestLevel) {
@@ -54,6 +76,17 @@ export function getContestLevelLabel(level: ContestLevel) {
       return 'Medium'
     case 'HARD':
       return 'Hard'
+  }
+}
+
+export function getContestLevelTone(level: ContestLevel) {
+  switch (level) {
+    case 'LITE':
+      return 'text-[var(--color-level-lite)]'
+    case 'MEDIUM':
+      return 'text-[var(--color-level-medium)]'
+    case 'HARD':
+      return 'text-[var(--color-level-hard)]'
   }
 }
 
@@ -76,17 +109,18 @@ export function getContestStatusLabel(status: ContestStatus) {
 
 export function getContestStatusTone(status: ContestStatus) {
   switch (status) {
-    case 'REGISTRATION_OPEN':
-      return 'text-[#9DFF00]'
-    case 'RUNNING':
-      return 'text-[#04CA37]'
-    case 'FINISHED':
-    case 'CANCELLED':
-      return 'text-[#FF3B30]'
-    case 'REGISTRATION_CLOSED':
-      return 'text-[#D3E6EB]'
     case 'DRAFT':
-      return 'text-[#7F9F01]'
+      return 'text-[var(--color-status-draft)]'
+    case 'REGISTRATION_OPEN':
+      return 'text-[var(--color-status-open)]'
+    case 'REGISTRATION_CLOSED':
+      return 'text-[var(--color-status-closed)]'
+    case 'RUNNING':
+      return 'text-[var(--color-status-running)]'
+    case 'FINISHED':
+      return 'text-[var(--color-status-finished)]'
+    case 'CANCELLED':
+      return 'text-[var(--color-status-cancelled)]'
   }
 }
 
@@ -124,10 +158,10 @@ export function getContestRegistrationLabel(
 
 export function getContestCardButtonClass(status: ContestStatus) {
   if (status === 'REGISTRATION_OPEN') {
-    return 'border-[#7F9F01] bg-[#C0F000] text-[#111111] hover:translate-y-[-1px] hover:shadow-[0_0_24px_rgba(127,159,1,0.35)]'
+    return 'border-[var(--color-acid)] bg-[var(--color-acid-strong)] text-[var(--color-acid-contrast)] hover:translate-y-[-1px] hover:shadow-[var(--shadow-acid)]'
   }
 
-  return 'border-[#7F9F01] bg-[#0b0b0b] text-[#94B300] hover:bg-[#101010]'
+  return 'border-[var(--color-acid)] bg-[var(--color-surface)] text-[var(--color-acid)] hover:bg-[color:color-mix(in_srgb,var(--color-surface)_85%,var(--color-acid)_15%)]'
 }
 
 export function getContestLanguageLabel(languages: ProgrammingLanguage[]) {
