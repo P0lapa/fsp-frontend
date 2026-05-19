@@ -174,7 +174,7 @@ export function CompetitionsPage() {
                     <button
                       type="button"
                       onClick={() => setVisibleCount((current) => current + LOAD_MORE_STEP)}
-                      className="border border-[var(--color-acid)] bg-[var(--color-acid-strong)] px-6 py-3 font-jetbrains text-lg font-bold text-[var(--color-acid-contrast)] transition hover:translate-y-[-1px] hover:shadow-[var(--shadow-acid)]"
+                      className="border border-[var(--color-button-active-border)] bg-[var(--color-button-active-bg)] px-6 py-3 font-jetbrains text-lg font-bold text-[var(--color-button-active-text)] transition hover:translate-y-[-1px] hover:bg-[var(--color-button-active-hover-bg)] hover:text-[var(--color-button-active-hover-text)] hover:shadow-[var(--shadow-acid)]"
                     >
                       [Показать ещё]
                     </button>

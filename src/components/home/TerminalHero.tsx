@@ -20,7 +20,7 @@ const descriptionBaseClasses =
   'mt-6 max-w-2xl font-ibm text-base text-[var(--color-text)] sm:mt-8 sm:text-lg md:text-xl'
 const ctaWrapperClasses = 'mt-7 sm:mt-8'
 const ctaClasses =
-  'inline-flex max-w-full items-center border border-[var(--color-acid)] bg-[var(--color-acid-strong)] px-3 py-2.5 font-jetbrains text-sm font-bold text-[var(--color-acid-contrast)] transition hover:translate-y-[-1px] hover:shadow-[var(--shadow-acid)] sm:px-4 sm:py-3 sm:text-lg'
+  'inline-flex max-w-full items-center border border-[var(--color-button-active-border)] bg-[var(--color-button-active-bg)] px-3 py-2.5 font-jetbrains text-sm font-bold text-[var(--color-button-active-text)] transition hover:translate-y-[-1px] hover:bg-[var(--color-button-active-hover-bg)] hover:text-[var(--color-button-active-hover-text)] hover:shadow-[var(--shadow-acid)] sm:px-4 sm:py-3 sm:text-lg'
 
 type TerminalHeroProps = {
   sectionClassName?: string

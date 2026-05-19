@@ -64,6 +64,43 @@ export function formatContestDateTime(date: string | null | undefined) {
   }).format(parsedDate)
 }
 
+export function formatContestDuration(
+  startAt: string | null | undefined,
+  endAt: string | null | undefined,
+) {
+  const startDate = getValidDate(startAt)
+  const endDate = getValidDate(endAt)
+
+  if (!startDate || !endDate) {
+    return '—'
+  }
+
+  const durationInMinutes = Math.floor((endDate.getTime() - startDate.getTime()) / 60000)
+
+  if (durationInMinutes <= 0) {
+    return '—'
+  }
+
+  const days = Math.floor(durationInMinutes / (24 * 60))
+  const hours = Math.floor((durationInMinutes % (24 * 60)) / 60)
+  const minutes = durationInMinutes % 60
+  const parts: string[] = []
+
+  if (days > 0) {
+    parts.push(`${days} д`)
+  }
+
+  if (hours > 0) {
+    parts.push(`${hours} ч`)
+  }
+
+  if (minutes > 0) {
+    parts.push(`${minutes} мин`)
+  }
+
+  return parts.join(' ')
+}
+
 export function getContestTimestamp(date: string | null | undefined) {
   return getValidDate(date)?.getTime() ?? Number.NEGATIVE_INFINITY
 }
@@ -201,13 +238,12 @@ export function getContestDetailFacts(contest: ContestFullResponseDto) {
       label: 'Участие',
       value: getParticipationLabel(contest.participationType, contest.maxTeamSize),
     },
-    { label: 'Старт', value: formatContestDateTime(contest.startAt) },
-    { label: 'Финиш', value: formatContestDateTime(contest.endAt) },
     {
       label: 'Регистрация',
       value: contest.registrationEndAt
         ? `до ${formatContestDateTime(contest.registrationEndAt)}`
         : 'Без дедлайна',
     },
+    { label: 'Длительность', value: formatContestDuration(contest.startAt, contest.endAt) },
   ]
 }

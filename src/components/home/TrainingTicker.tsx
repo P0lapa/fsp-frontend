@@ -25,7 +25,7 @@ export function TrainingTicker() {
       <div className="mx-auto flex max-w-7xl items-center gap-8 overflow-hidden px-4 py-4 sm:px-6 md:px-8">
         <Link
           to="/training"
-          className="shrink-0 rounded-[2px] bg-[var(--color-acid-strong)] px-3 py-2 font-jetbrains text-sm font-bold uppercase tracking-[0.08em] text-[var(--color-acid-contrast)] transition hover:bg-[var(--color-acid-hover)] hover:text-[var(--color-acid-contrast)] hover:shadow-[var(--shadow-acid)] sm:px-4 sm:text-base"
+          className="shrink-0 rounded-[2px] border border-[var(--color-button-active-border)] bg-[var(--color-button-active-bg)] px-3 py-2 font-jetbrains text-sm font-bold uppercase tracking-[0.08em] text-[var(--color-button-active-text)] transition hover:bg-[var(--color-button-active-hover-bg)] hover:text-[var(--color-button-active-hover-text)] hover:shadow-[var(--shadow-acid)] sm:px-4 sm:text-base"
         >
           ТРЕНИРОВАТЬСЯ:
         </Link>

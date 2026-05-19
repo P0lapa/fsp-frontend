@@ -1,21 +1,59 @@
 import keycloak from '../auth/keycloak'
+import { notifyApiError } from './apiErrorBus'
+
+type AuthFetchInit = RequestInit & {
+  silentError?: boolean
+}
 
 export async function authFetch(
   input: RequestInfo | URL,
-  init: RequestInit = {},
+  init: AuthFetchInit = {},
 ): Promise<Response> {
   if (keycloak.authenticated) {
     await keycloak.updateToken(30)
   }
 
+  const { silentError = false, ...requestInit } = init
   const headers = new Headers(init.headers)
 
   if (keycloak.token) {
     headers.set('Authorization', `Bearer ${keycloak.token}`)
   }
 
-  return fetch(input, {
-    ...init,
+  const response = await fetch(input, {
+    ...requestInit,
     headers,
   })
+
+  if (!response.ok && !silentError && response.status !== 401) {
+    try {
+      const errorPayload = (await response.clone().json()) as Partial<{
+        status: number
+        error: string
+        message: string
+        path: string
+      }>
+
+      if (typeof errorPayload.message === 'string' && errorPayload.message.trim()) {
+        notifyApiError({
+          status: typeof errorPayload.status === 'number' ? errorPayload.status : response.status,
+          error:
+            typeof errorPayload.error === 'string' && errorPayload.error.trim()
+              ? errorPayload.error
+              : 'Ошибка',
+          message: errorPayload.message,
+          path:
+            typeof errorPayload.path === 'string' && errorPayload.path.trim()
+              ? errorPayload.path
+              : typeof input === 'string'
+                ? input
+                : input.toString(),
+        })
+      }
+    } catch {
+      // Ignore non-JSON responses and let local handlers proceed.
+    }
+  }
+
+  return response
 }

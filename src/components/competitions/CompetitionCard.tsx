@@ -32,7 +32,7 @@ export function CompetitionCard({ contest }: CompetitionCardProps) {
         </span>
       </div>
 
-      <div className="rounded-[8px] space-y-2 bg-[var(--color-surface-soft)] px-4 py-4">
+      <div className="rounded-[8px] space-y-1 bg-[var(--color-surface-soft)] px-4 py-4">
         <div className="space-y-1 font-jetbrains text-[14px] tracking-[0.08em] text-[var(--color-text)] sm:text-[15px]">
           <div className={getContestStatusTone(contest.status)}>
             {getContestRegistrationLabel(contest)}
@@ -43,7 +43,7 @@ export function CompetitionCard({ contest }: CompetitionCardProps) {
           </div>
         </div>
 
-        <div className="min-h-24 space-y-1 font-ibm text-[24px] leading-[1.18] tracking-[0.02em] text-[var(--color-text)]">
+        <div className="min-h-20 space-y-1 font-ibm text-[24px] leading-[1.18] tracking-[0.02em] text-[var(--color-text)]">
           {summaryLines.map((line) => (
             <div key={line}>{line}</div>
           ))}
