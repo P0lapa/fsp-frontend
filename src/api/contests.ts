@@ -99,11 +99,16 @@ async function apiGet<T>(path: string): Promise<T> {
   return (await response.json()) as T
 }
 
-async function apiAuthGet<T>(path: string): Promise<T> {
+type ApiAuthGetOptions = {
+  silentErrorStatuses?: number[]
+}
+
+async function apiAuthGet<T>(path: string, options: ApiAuthGetOptions = {}): Promise<T> {
   const response = await authFetch(`${API_BASE_URL}${path}`, {
     headers: {
       Accept: 'application/json',
     },
+    silentErrorStatuses: options.silentErrorStatuses,
   })
 
   if (!response.ok) {
@@ -162,7 +167,9 @@ export function getContestParticipantStatus(contestId: number) {
 
 export async function getMyContestParticipation(contestId: number) {
   try {
-    return await apiAuthGet<ParticipationResponseDto>(`/contests/${contestId}/my-participation`)
+    return await apiAuthGet<ParticipationResponseDto>(`/contests/${contestId}/my-participation`, {
+      silentErrorStatuses: [404],
+    })
   } catch (error) {
     if (
       error instanceof Error &&

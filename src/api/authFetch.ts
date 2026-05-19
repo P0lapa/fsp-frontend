@@ -3,6 +3,7 @@ import { notifyApiError } from './apiErrorBus'
 
 type AuthFetchInit = RequestInit & {
   silentError?: boolean
+  silentErrorStatuses?: number[]
 }
 
 export async function authFetch(
@@ -13,7 +14,7 @@ export async function authFetch(
     await keycloak.updateToken(30)
   }
 
-  const { silentError = false, ...requestInit } = init
+  const { silentError = false, silentErrorStatuses = [], ...requestInit } = init
   const headers = new Headers(init.headers)
 
   if (keycloak.token) {
@@ -25,7 +26,9 @@ export async function authFetch(
     headers,
   })
 
-  if (!response.ok && !silentError && response.status !== 401) {
+  const shouldSilenceStatus = silentErrorStatuses.includes(response.status)
+
+  if (!response.ok && !silentError && !shouldSilenceStatus && response.status !== 401) {
     try {
       const errorPayload = (await response.clone().json()) as Partial<{
         status: number
