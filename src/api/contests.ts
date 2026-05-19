@@ -51,6 +51,70 @@ export type ContestParticipantStatusDto = {
   canSubmit: boolean
 }
 
+export type ContestParticipantTaskListItemDto = {
+  id: number
+  label: string
+  title: string
+  bestVerdict: string | null
+}
+
+export type ContestParticipantTaskStatsDto = {
+  attemptCount: number
+  bestVerdict: string | null
+  solved: boolean
+}
+
+export type ContestParticipantTaskDetailsDto = {
+  id: number
+  label: string
+  title: string
+  statement: string
+  inputDescription: string
+  outputDescription: string
+  notes: string | null
+  exampleInput: string | null
+  exampleOutput: string | null
+  constraintsText: string | null
+  timeLimitMs: number
+  memoryLimitMb: number
+  allowedLanguages: ProgrammingLanguage[]
+  myStats: ContestParticipantTaskStatsDto
+}
+
+export type SubmissionRequestDto = {
+  language: ProgrammingLanguage
+  solution: string
+}
+
+export type SubmissionTestResultDto = {
+  testId: number
+  orderNum: number
+  passed: boolean
+  verdict: string
+  reason: string | null
+  timeMs: number | null
+  memoryBytes: number | null
+}
+
+export type SubmissionResponseDto = {
+  attemptId: number
+  contestId: number
+  taskId: number
+  attemptNumber: number
+  language: ProgrammingLanguage
+  submissionTime: string
+  verdict: string
+  success: boolean
+  passedTestsCount: number
+  totalTestsCount: number
+  maxTimeMs: number | null
+  maxMemoryBytes: number | null
+  compileOutput: string | null
+  checkerOutput: string | null
+  judgeMessage: string | null
+  testResults: SubmissionTestResultDto[]
+}
+
 export type TeamInviteResponseDto = {
   inviteToken: string
   inviteLink: string
@@ -99,11 +163,11 @@ async function apiGet<T>(path: string): Promise<T> {
   return (await response.json()) as T
 }
 
-type ApiAuthGetOptions = {
+type ApiAuthOptions = {
   silentErrorStatuses?: number[]
 }
 
-async function apiAuthGet<T>(path: string, options: ApiAuthGetOptions = {}): Promise<T> {
+async function apiAuthGet<T>(path: string, options: ApiAuthOptions = {}): Promise<T> {
   const response = await authFetch(`${API_BASE_URL}${path}`, {
     headers: {
       Accept: 'application/json',
@@ -118,7 +182,7 @@ async function apiAuthGet<T>(path: string, options: ApiAuthGetOptions = {}): Pro
   return (await response.json()) as T
 }
 
-async function apiAuthPost<T>(path: string, body?: unknown): Promise<T> {
+async function apiAuthPost<T>(path: string, body?: unknown, options: ApiAuthOptions = {}): Promise<T> {
   const headers = new Headers({
     Accept: 'application/json',
   })
@@ -131,6 +195,7 @@ async function apiAuthPost<T>(path: string, body?: unknown): Promise<T> {
     method: 'POST',
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    silentErrorStatuses: options.silentErrorStatuses,
   })
 
   if (!response.ok) {
@@ -161,8 +226,23 @@ export function getContestById(contestId: number) {
   return apiGet<ContestFullResponseDto>(`/contests/${contestId}`)
 }
 
-export function getContestParticipantStatus(contestId: number) {
-  return apiAuthGet<ContestParticipantStatusDto>(`/contests/${contestId}/me`)
+export function getContestParticipantStatus(contestId: number, options?: ApiAuthOptions) {
+  return apiAuthGet<ContestParticipantStatusDto>(`/contests/${contestId}/me`, options)
+}
+
+export function getContestParticipantTasks(contestId: number, options?: ApiAuthOptions) {
+  return apiAuthGet<ContestParticipantTaskListItemDto[]>(`/contests/${contestId}/tasks`, options)
+}
+
+export function getContestParticipantTaskDetails(
+  contestId: number,
+  taskId: number,
+  options?: ApiAuthOptions,
+) {
+  return apiAuthGet<ContestParticipantTaskDetailsDto>(
+    `/contests/${contestId}/tasks/${taskId}`,
+    options,
+  )
 }
 
 export async function getMyContestParticipation(contestId: number) {
@@ -192,6 +272,19 @@ export function createContestTeam(contestId: number, request: TeamCreateRequestD
 
 export function joinContestTeam(contestId: number, request: TeamJoinByTokenRequestDto) {
   return apiAuthPost<ContestRegistrationResponseDto>(`/contests/${contestId}/teams/join`, request)
+}
+
+export function submitContestTaskSolution(
+  contestId: number,
+  taskId: number,
+  body: SubmissionRequestDto,
+  options?: ApiAuthOptions,
+) {
+  return apiAuthPost<SubmissionResponseDto>(
+    `/contests/${contestId}/tasks/${taskId}/submissions`,
+    body,
+    options,
+  )
 }
 
 export function cancelContestParticipation(contestId: number) {

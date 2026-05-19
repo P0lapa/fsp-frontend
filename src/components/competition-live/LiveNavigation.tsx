@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { useAuth } from '../auth/AuthContext'
+import { useAuth } from '../../auth/AuthContext'
 
 type NavItem = {
   label: string
@@ -43,17 +43,10 @@ function renderAuthAction(
   )
 }
 
-export function Header() {
+export function LiveNavigation() {
   const location = useLocation()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-
-  const {
-    isInitialized,
-    isAuthenticated,
-    login,
-    register,
-    logout,
-  } = useAuth()
+  const { isInitialized, isAuthenticated, login, register, logout } = useAuth()
 
   function closeMenu() {
     setIsMenuOpen(false)
@@ -78,12 +71,12 @@ export function Header() {
     ? []
     : isAuthenticated
       ? [
-          { key: 'profile', label: '\u041f\u0440\u043e\u0444\u0438\u043b\u044c', href: '/profile' },
-          { key: 'logout', label: '\u0412\u044b\u0445\u043e\u0434', onClick: handleLogout },
+          { key: 'profile', label: 'Профиль', href: '/profile' },
+          { key: 'logout', label: 'Выход', onClick: handleLogout },
         ]
       : [
-          { key: 'register', label: '\u0420\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044f', onClick: handleRegister },
-          { key: 'login', label: '\u0412\u043e\u0439\u0442\u0438', onClick: handleLogin },
+          { key: 'register', label: 'Регистрация', onClick: handleRegister },
+          { key: 'login', label: 'Войти', onClick: handleLogin },
         ]
 
   function renderNavLinks(linkClassName: string, onNavigate?: () => void) {
@@ -114,7 +107,7 @@ export function Header() {
     onNavigate?: () => void,
   ) {
     if (!isInitialized) {
-      return <span className="text-[var(--color-text-muted)]">[\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430]</span>
+      return <span className="text-[var(--color-text-muted)]">[Загрузка]</span>
     }
 
     return authActions.flatMap((action, index) => {
@@ -131,21 +124,21 @@ export function Header() {
   }
 
   return (
-    <header className="border-b border-[var(--color-border)] bg-[var(--color-bg)] font-mono">
+    <div className="group border-b border-[var(--color-border)] bg-[var(--color-bg)] font-mono">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:h-20 sm:px-6 md:px-8">
         <Link
           to="/"
           onClick={closeMenu}
           className="min-w-0 truncate text-sm font-bold tracking-wide text-[var(--color-accent)] sm:text-base md:text-lg"
         >
-          &gt;_ {'\u0422\u0415\u0420\u041c\u0418\u041d\u0410\u041b_\u041a\u041e\u0414\u0410'}
+          &gt;_ ТЕРМИНАЛ_КОДА
         </Link>
 
-        <nav className="hidden items-center gap-10 md:flex">
+        <nav className="hidden items-center gap-10 opacity-0 transition-opacity duration-200 group-hover:opacity-100 md:flex">
           {renderNavLinks('text-lg tracking-[0.18em] underline-offset-4 transition-colors')}
         </nav>
 
-        <div className="hidden items-center gap-3 text-lg tracking-[0.18em] text-[var(--color-text-muted)] md:flex">
+        <div className="hidden items-center gap-3 text-lg tracking-[0.18em] text-[var(--color-text-muted)] opacity-0 transition-opacity duration-200 group-hover:opacity-100 md:flex">
           {renderAuthActions('hover:text-[var(--color-accent)]', '/')}
         </div>
 
@@ -153,7 +146,7 @@ export function Header() {
           type="button"
           onClick={() => setIsMenuOpen((current) => !current)}
           className="flex h-10 w-10 shrink-0 flex-col items-center justify-center gap-1.5 border border-[var(--color-border)] text-[var(--color-accent)] md:hidden"
-          aria-label={'\u041e\u0442\u043a\u0440\u044b\u0442\u044c \u043c\u0435\u043d\u044e'}
+          aria-label="Открыть меню"
           aria-expanded={isMenuOpen}
         >
           <span
@@ -180,7 +173,10 @@ export function Header() {
       {isMenuOpen && (
         <div className="border-t border-[var(--color-border-muted)] bg-[var(--color-bg)] px-5 py-5 md:hidden">
           <nav className="flex flex-col gap-5">
-            {renderNavLinks('text-base tracking-[0.18em] underline-offset-4 transition-colors', closeMenu)}
+            {renderNavLinks(
+              'text-base tracking-[0.18em] underline-offset-4 transition-colors',
+              closeMenu,
+            )}
           </nav>
 
           <div className="mt-6 flex flex-col gap-3 border-t border-[var(--color-border-subtle)] pt-5 text-base tracking-[0.18em] text-[var(--color-text-muted)]">
@@ -188,6 +184,6 @@ export function Header() {
           </div>
         </div>
       )}
-    </header>
+    </div>
   )
 }
