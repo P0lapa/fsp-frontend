@@ -249,12 +249,27 @@ Authorization: Bearer <access_token>
 Возвращает `ContestParticipantStatusDto`:
 
 - `registered: boolean`
+- `status: ParticipationStatusEnum | null`
 - `participantType: ParticipationTypeEnum | null`
 - `teamId: number | null`
 - `teamName: string | null`
 - `isCaptain: boolean | null`
 - `canRegister: boolean`
 - `canSubmit: boolean`
+
+`status` для участника может быть:
+
+- `PENDING`
+- `CONFIRMED`
+- `ENDED`
+- `REJECTED`
+- `DISQUALIFIED`
+
+Для фронта важно:
+
+- если `status = ENDED`, пользователь уже завершил соревнование
+- в этом случае `canSubmit = false`
+- после этого кнопку отправки решения и кнопку завершения лучше скрывать или дизейблить
 
 Подходит для:
 
@@ -271,10 +286,6 @@ Authorization: Bearer <access_token>
 - `id`
 - `label`
 - `title`
-- `shortName`
-- `score`
-- `solved`
-- `attemptCount`
 - `bestVerdict`
 
 Подходит для:
@@ -315,6 +326,99 @@ Authorization: Bearer <access_token>
 - страницы задачи участника
 - выбора языка программирования
 - показа пользовательского прогресса по задаче
+
+### `POST /api/contests/{contestId}/finish`
+
+Требует авторизацию.
+
+Помечает текущего пользователя как завершившего соревнование.
+
+Тело запроса не требуется.
+
+Ответа нет, статус `204 No Content`.
+
+После успешного вызова фронту стоит заново запросить:
+
+- `GET /api/contests/{contestId}/me`
+
+Ожидаемый результат после finish:
+
+- `status = ENDED`
+- `canSubmit = false`
+
+Пример:
+
+```http
+POST /api/contests/15/finish
+Authorization: Bearer <token>
+```
+
+### `GET /api/contests/{contestId}/tasks/{taskId}/submissions`
+
+Требует авторизацию.
+
+Возвращает попытки текущего участника по конкретной задаче внутри конкретного соревнования.
+
+Важно:
+
+- выборка идет именно внутри `contestId + taskId`
+- если одна и та же задача потом появится в тренировках, тренировочные попытки сюда не попадут
+- для командного соревнования возвращаются попытки текущей команды пользователя в рамках этого соревнования
+
+Ответ: `ContestParticipantSubmissionListItemDto[]`
+
+- `attemptId`
+- `attemptNumber`
+- `submissionTime`
+- `verdict`
+- `language`
+- `passedTestsCount`
+- `solution`
+
+Подходит для:
+
+- истории отправок на странице задачи
+- списка прошлых попыток
+- повторного открытия и просмотра ранее отправленного кода
+
+Пример:
+
+```http
+GET /api/contests/15/tasks/42/submissions
+Authorization: Bearer <token>
+```
+
+### `GET /api/contests/{contestId}/tasks/{taskId}/submissions/{attemptId}`
+
+Требует авторизацию.
+
+Возвращает детали тестов конкретной попытки текущего участника по задаче внутри соревнования.
+
+Ответ: `ContestParticipantSubmissionDetailsDto`
+
+- `testResults`
+
+`testResults[]`:
+
+- `orderNum`
+- `passed`
+- `verdict`
+- `reason`
+- `timeMs`
+- `memoryBytes`
+
+Подходит для:
+
+- раскрытия деталей конкретной отправки
+- экрана результата одной попытки
+- таблицы прохождения тестов по сабмиту
+
+Пример:
+
+```http
+GET /api/contests/15/tasks/42/submissions/77
+Authorization: Bearer <token>
+```
 
 ## 4. Registration / Teams
 
@@ -733,10 +837,57 @@ Authorization: Bearer <access_token>
 
 Отправляет решение в judge.
 
+Поддерживает два формата запроса:
+
+1. `application/json`
+2. `multipart/form-data`
+
+Если у пользователя `status = ENDED`, после завершения соревнования этот endpoint использовать нельзя.
+
+#### JSON-вариант
+
 Тело запроса: `SubmissionRequestDto`
 
 - `language: ProgrammingLanguageEnum`
 - `solution: string`
+
+Пример:
+
+```http
+POST /api/contests/15/tasks/42/submissions
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "language": "JAVA",
+  "solution": "public class Main { public static void main(String[] args) {} }"
+}
+```
+
+#### Multipart-вариант
+
+`Content-Type: multipart/form-data`
+
+Поля формы:
+
+- `language: ProgrammingLanguageEnum`
+- `file: File`
+
+Пример на фронте:
+
+```ts
+const formData = new FormData();
+formData.append("language", "JAVA");
+formData.append("file", selectedFile);
+
+await fetch(`/api/contests/${contestId}/tasks/${taskId}/submissions`, {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${token}`,
+  },
+  body: formData,
+});
+```
 
 Ответ: `SubmissionResponseDto`
 
@@ -796,6 +947,8 @@ Authorization: Bearer <access_token>
 - страницу контеста с participant-state
 - список задач контеста
 - страницу конкретной задачи
+- историю попыток по задаче
+- просмотр деталей конкретной попытки
 - отправку решения
 
 Нужные ручки:
@@ -808,21 +961,22 @@ Authorization: Bearer <access_token>
 - `POST /api/contests/{contestId}/teams/join`
 - `GET /api/contests/{contestId}/tasks`
 - `GET /api/contests/{contestId}/tasks/{taskId}`
+- `GET /api/contests/{contestId}/tasks/{taskId}/submissions`
+- `GET /api/contests/{contestId}/tasks/{taskId}/submissions/{attemptId}`
+- `POST /api/contests/{contestId}/finish`
 - `POST /api/contests/{contestId}/tasks/{taskId}/submissions`
 
 ## 12. Чего пока не хватает для полноценного participant UI
 
 Сейчас в API нет participant-friendly endpoint'ов для:
 
-- списка моих отправок по контесту
-- получения одной старой отправки по `attemptId`
+- списка моих отправок по всему контесту без привязки к конкретной задаче
 - таблицы результатов `standings`
 - live scoreboard
 
 То есть для полноценного соревновательного интерфейса ещё полезно добавить:
 
 - `GET /api/contests/{contestId}/my-submissions`
-- `GET /api/contests/{contestId}/submissions/{attemptId}`
 - `GET /api/contests/{contestId}/standings`
 
 ## 13. Рекомендуемый фронтенд flow
@@ -844,7 +998,11 @@ Authorization: Bearer <access_token>
    - `POST /api/contests/{contestId}/teams/join`
 5. `GET /api/contests/{contestId}/tasks`
 6. `GET /api/contests/{contestId}/tasks/{taskId}`
-7. `POST /api/contests/{contestId}/tasks/{taskId}/submissions`
+7. `GET /api/contests/{contestId}/tasks/{taskId}/submissions`
+8. По клику на конкретную попытку: `GET /api/contests/{contestId}/tasks/{taskId}/submissions/{attemptId}`
+9. `POST /api/contests/{contestId}/tasks/{taskId}/submissions`
+10. По кнопке "Завершить": `POST /api/contests/{contestId}/finish`
+11. После finish перечитать `GET /api/contests/{contestId}/me`
 
 ## 14. Файлы backend, на которые опирается эта документация
 

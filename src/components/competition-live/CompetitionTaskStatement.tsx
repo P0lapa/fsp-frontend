@@ -1,25 +1,93 @@
-import { useMemo } from 'react'
-import type { KeyboardEvent } from 'react'
-import type { ContestParticipantTaskDetailsDto, SubmissionResponseDto } from '../../api/contests'
+import { useMemo, type KeyboardEvent, type ReactNode } from 'react'
+import type {
+  ContestParticipantSubmissionDetailsDto,
+  ContestParticipantSubmissionListItemDto,
+  ContestParticipantTaskDetailsDto,
+} from '../../api/contests'
 import copyIcon from '../../assets/Copy.svg'
-import { getProgrammingLanguageLabel, parseExampleBlocks } from './competitionLiveUtils'
+import {
+  getProgrammingLanguageLabel,
+  getTaskVisualState,
+  parseExampleBlocks,
+} from './competitionLiveUtils'
 
 export type CompetitionTaskStatementTab = 'statement' | 'submissions'
 
 type CompetitionTaskStatementProps = {
   task: ContestParticipantTaskDetailsDto | null
-  submissions: SubmissionResponseDto[]
+  submissions: ContestParticipantSubmissionListItemDto[]
+  activeSubmissionId: number | null
+  submissionDetails: ContestParticipantSubmissionDetailsDto | null
   activeTab: CompetitionTaskStatementTab
   onTabChange: (tab: CompetitionTaskStatementTab) => void
+  onSubmissionSelect: (attemptId: number) => void
   formatInputText: string
   formatOutputText: string
   isLoading?: boolean
   error?: string | null
+  isSubmissionsLoading?: boolean
+  submissionsError?: string | null
+  isSubmissionDetailsLoading?: boolean
+  submissionDetailsError?: string | null
   onRetry?: () => void
   isBlurred?: boolean
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+function formatSubmissionTime(value: string) {
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return new Intl.DateTimeFormat('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(date)
+}
+
+function formatMemoryBytes(value: number | null) {
+  if (value === null || Number.isNaN(value)) {
+    return '—'
+  }
+
+  if (value >= 1024 * 1024) {
+    return `${(value / (1024 * 1024)).toFixed(1)} МБ`
+  }
+
+  if (value >= 1024) {
+    return `${Math.round(value / 1024)} КБ`
+  }
+
+  return `${value} Б`
+}
+
+function getVerdictClassName(verdict: string) {
+  const state = getTaskVisualState({ bestVerdict: verdict })
+
+  if (state === 'solved') {
+    return 'text-[var(--color-accent)]'
+  }
+
+  if (state === 'failed') {
+    return 'text-[var(--color-danger)]'
+  }
+
+  return 'text-[var(--color-text)]'
+}
+
+function formatCompactVerdict(verdict: string) {
+  const normalizedVerdict = verdict.trim()
+
+  if (normalizedVerdict.startsWith('TEST_STATUS_')) {
+    return normalizedVerdict.slice('TEST_STATUS_'.length)
+  }
+
+  return normalizedVerdict
+}
+
+function SectionTitle({ children }: { children: ReactNode }) {
   return (
     <h3 className="font-jetbrains text-[15px] tracking-[0.04em] text-[var(--color-text)]">
       {children}
@@ -27,7 +95,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   )
 }
 
-function StatementText({ children }: { children: React.ReactNode }) {
+function StatementText({ children }: { children: ReactNode }) {
   return (
     <div className="whitespace-pre-wrap font-ibm text-[15px] leading-[1.65] text-[var(--color-text)]">
       {children}
@@ -40,7 +108,7 @@ function FramedInfoBlock({
   children,
 }: {
   title: string
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
     <section className="border border-[var(--color-border)] bg-[color:color-mix(in_srgb,var(--color-accent)_10%,var(--color-surface))] px-4 py-3">
@@ -90,15 +158,101 @@ function ExampleCard({
   )
 }
 
+function SubmissionDetailsPanel({
+  submission,
+  details,
+  isLoading,
+  error,
+}: {
+  submission: ContestParticipantSubmissionListItemDto
+  details: ContestParticipantSubmissionDetailsDto | null
+  isLoading: boolean
+  error: string | null
+}) {
+  return (
+    <div className="mt-3 space-y-4 border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-4">
+      {isLoading ? (
+        <div className="font-ibm text-sm text-[var(--color-text-muted)]">
+          Загружаем детали попытки...
+        </div>
+      ) : null}
+
+      {error ? <div className="font-ibm text-sm text-[var(--color-danger)]">{error}</div> : null}
+
+      {!isLoading && !error && details ? (
+        <div className="space-y-5">
+          <section className="space-y-3">
+            <SectionTitle>Тесты</SectionTitle>
+            {details.testResults.length > 0 ? (
+              <div className="space-y-2">
+                {details.testResults.map((test) => (
+                  <div
+                    key={`${submission.attemptId}-${test.orderNum}`}
+                      className="grid gap-2 border border-[var(--color-border-subtle)] px-3 py-3 md:grid-cols-[56px_120px_1fr_90px_110px]"
+                  >
+                    <div className="font-jetbrains text-[13px] tracking-[0.04em] text-[var(--color-text)]">
+                      {test.orderNum}
+                    </div>
+                    <div
+                      className={[
+                        'font-ibm text-[14px]',
+                        test.passed ? 'text-[var(--color-accent)]' : 'text-[var(--color-danger)]',
+                      ].join(' ')}
+                    >
+                      {test.passed ? 'Пройден' : 'Не пройден'}
+                    </div>
+                    <div className={['font-ibm text-[14px]', getVerdictClassName(test.verdict)].join(' ')}>
+                      {formatCompactVerdict(test.verdict)}
+                    </div>
+                    <div className="font-ibm text-[14px] text-[var(--color-text-muted)]">
+                      {test.timeMs === null ? '—' : `${test.timeMs} мс`}
+                    </div>
+                    <div className="font-ibm text-[14px] text-[var(--color-text-muted)]">
+                      {formatMemoryBytes(test.memoryBytes)}
+                    </div>
+                    {test.reason && formatCompactVerdict(test.verdict) !== 'AC' ? (
+                      <div className="md:col-span-5 font-ibm text-[14px] text-[var(--color-text-muted)]">
+                        {test.reason}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="font-ibm text-sm text-[var(--color-text-muted)]">
+                Детали по тестам пока отсутствуют.
+              </div>
+            )}
+          </section>
+
+          <section className="space-y-2">
+            <SectionTitle>Исходный код</SectionTitle>
+            <pre className="overflow-x-auto border border-[var(--color-border-subtle)] bg-[var(--color-surface-soft)] px-4 py-4 font-jetbrains text-[14px] leading-[1.45] text-[var(--color-text)]">
+              {submission.solution || '// исходный код недоступен'}
+            </pre>
+          </section>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export function CompetitionTaskStatement({
   task,
   submissions,
+  activeSubmissionId,
+  submissionDetails,
   activeTab,
   onTabChange,
+  onSubmissionSelect,
   formatInputText,
   formatOutputText,
   isLoading = false,
   error = null,
+  isSubmissionsLoading = false,
+  submissionsError = null,
+  isSubmissionDetailsLoading = false,
+  submissionDetailsError = null,
   onRetry,
   isBlurred = false,
 }: CompetitionTaskStatementProps) {
@@ -111,14 +265,6 @@ export function CompetitionTaskStatement({
 
     return parseExampleBlocks(task.exampleInput, task.exampleOutput)
   }, [task])
-
-  const safeSubmissions = useMemo(() => {
-    if (!task) {
-      return []
-    }
-
-    return submissions.filter((submission) => submission.taskId === task.id)
-  }, [submissions, task])
 
   if (isLoading) {
     return (
@@ -312,34 +458,73 @@ export function CompetitionTaskStatement({
             aria-hidden={showBlurOverlay}
             className={showBlurOverlay ? 'pointer-events-none invisible' : 'space-y-3'}
           >
-            {safeSubmissions.length > 0 ? (
-              safeSubmissions.map((submission) => (
-                <article
-                  key={submission.attemptId}
-                  className="border-b border-[var(--color-border-subtle)] py-3"
-                >
-                  <div className="grid grid-cols-[90px_1fr_1fr_60px_24px] items-center gap-3 font-ibm text-[15px] text-[var(--color-text)]">
-                    <span>{submission.submissionTime}</span>
-                    <span
-                      className={
-                        submission.success ? 'text-[var(--color-acid)]' : 'text-[var(--color-danger)]'
-                      }
-                    >
-                      {submission.verdict}
-                    </span>
-                    <span>{getProgrammingLanguageLabel(submission.language)}</span>
-                    <span>{submission.passedTestsCount}</span>
-                    <span className="font-jetbrains text-lg" aria-hidden="true">
-                      ›
-                    </span>
-                  </div>
-                </article>
-              ))
-            ) : (
-              <div className="font-ibm text-sm text-[var(--color-text)]">
-                У вас пока нет локальной истории отправок по этой задаче.
+            <div className="grid grid-cols-[90px_1fr_1fr_110px_24px] gap-3 border-b border-[var(--color-border)] pb-2 font-jetbrains text-[13px] tracking-[0.04em] text-[var(--color-accent)]">
+              <span>Время</span>
+              <span>Вердикт</span>
+              <span>Язык</span>
+              <span>Тесты</span>
+              <span aria-hidden="true" />
+            </div>
+
+            {isSubmissionsLoading ? (
+              <div className="font-ibm text-sm text-[var(--color-text-muted)]">
+                Загружаем отправки...
               </div>
-            )}
+            ) : null}
+
+            {submissionsError ? (
+              <div className="font-ibm text-sm text-[var(--color-danger)]">{submissionsError}</div>
+            ) : null}
+
+            {!isSubmissionsLoading && !submissionsError && submissions.length > 0 ? (
+              submissions.map((submission) => {
+                const isActive = submission.attemptId === activeSubmissionId
+
+                return (
+                  <article
+                    key={submission.attemptId}
+                    className="border-b border-[var(--color-border-subtle)] py-3"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onSubmissionSelect(submission.attemptId)}
+                      className="grid w-full grid-cols-[90px_1fr_1fr_110px_24px] items-center gap-3 text-left font-ibm text-[15px] text-[var(--color-text)] transition hover:text-[var(--color-text-muted)]"
+                    >
+                      <span>{formatSubmissionTime(submission.submissionTime)}</span>
+                      <span className={getVerdictClassName(submission.verdict)}>
+                        {formatCompactVerdict(submission.verdict)}
+                      </span>
+                      <span>{getProgrammingLanguageLabel(submission.language)}</span>
+                      <span>{submission.passedTestsCount}</span>
+                      <span
+                        className={[
+                          'font-jetbrains text-lg transition-transform duration-200',
+                          isActive ? 'rotate-90' : '',
+                        ].join(' ')}
+                        aria-hidden="true"
+                      >
+                        ›
+                      </span>
+                    </button>
+
+                    {isActive ? (
+                      <SubmissionDetailsPanel
+                        submission={submission}
+                        details={submissionDetails}
+                        isLoading={isSubmissionDetailsLoading}
+                        error={submissionDetailsError}
+                      />
+                    ) : null}
+                  </article>
+                )
+              })
+            ) : null}
+
+            {!isSubmissionsLoading && !submissionsError && submissions.length === 0 ? (
+              <div className="font-ibm text-sm text-[var(--color-text)]">
+                У вас пока нет отправок по этой задаче.
+              </div>
+            ) : null}
           </div>
         )}
 

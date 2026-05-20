@@ -14,7 +14,7 @@ type CompetitionSubmissionPanelProps = {
   cursorColumn: number
   onCursorChange: (cursor: { line: number; column: number }) => void
   onSubmit: () => void
-  onAttachFile?: () => void
+  onAttachFileChange?: (file: File | null) => void
   attachedFileLabel?: string | null
   isSubmitting?: boolean
   canSubmit?: boolean
@@ -237,21 +237,23 @@ export function CompetitionSubmissionPanel({
   cursorColumn,
   onCursorChange,
   onSubmit,
-  onAttachFile,
-  // attachedFileLabel = null,
+  onAttachFileChange,
+  attachedFileLabel = null,
   isSubmitting = false,
   canSubmit = true,
 }: CompetitionSubmissionPanelProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const gutterRef = useRef<HTMLDivElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const lineNumbers = useMemo(() => {
     const totalLines = Math.max(1, sourceCode.split('\n').length)
     return Array.from({ length: totalLines }, (_, index) => index + 1)
   }, [sourceCode])
 
+  const hasFileAttached = Boolean(attachedFileLabel)
   const isSubmitDisabled =
-    !canSubmit || isSubmitting || !selectedLanguage || sourceCode.trim().length === 0
+    !canSubmit || isSubmitting || !selectedLanguage || (!hasFileAttached && sourceCode.trim().length === 0)
 
   function updateCursorPosition() {
     const textarea = textareaRef.current
@@ -274,11 +276,9 @@ export function CompetitionSubmissionPanel({
   return (
     <section className="px-4 pt-1">
       <div className="flex min-h-11 items-center justify-between gap-4">
-        <div className="flex text-[18px] tracking-[0.04em] text-[var(--color-accent)]">
-          <div className="font-jetbrains">Код</div>
-          <div className="font-8bit">{'</>'}</div>
+        <div className="font-jetbrains text-[18px] tracking-[0.04em] text-[var(--color-accent)]">
+          Код {'</>'}
         </div>
-
 
         <LanguageSelect
           value={selectedLanguage}
@@ -291,7 +291,7 @@ export function CompetitionSubmissionPanel({
         <div className="grid min-h-[300px] grid-cols-[40px_minmax(0,1fr)]">
           <div
             ref={gutterRef}
-            className="overflow-hidden border-r border-[var(--color-border-subtle)] px-2 py-3 text-right font-jetbrains text-[14px] leading-7 text-[var(--color-text)]"
+            className="overflow-hidden border-r border-[var(--color-border-subtle)] px-2 py-3 text-right font-jetbrains text-[14px] leading-7 text-[var(--color-text-muted)]"
           >
             {lineNumbers.map((lineNumber) => (
               <div key={lineNumber}>{lineNumber}</div>
@@ -330,20 +330,33 @@ export function CompetitionSubmissionPanel({
       </div>
 
       <div className="mt-5 flex items-stretch justify-between gap-4">
-        <div className="flex min-h-11 items-center font-ibm text-[16px] text-[var(--color-text)]">
+        <div className="flex min-h-11 items-center font-ibm text-[16px] text-[var(--color-text-muted)]">
           строка {cursorLine}, столбец {cursorColumn}
         </div>
 
         <div className="flex items-stretch">
           <button
             type="button"
-            onClick={onAttachFile}
+            onClick={() => fileInputRef.current?.click()}
             className="inline-flex min-h-11 items-center gap-3 border border-r-0 border-[var(--color-button-active-border)] px-4 text-[var(--color-text-muted)] transition hover:text-[var(--color-accent)] disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={!onAttachFile}
+            disabled={!onAttachFileChange}
           >
             <img src={addFileIcon} alt="" aria-hidden="true" className="h-6 w-6 object-contain" />
-            {/* <span className="font-ibm text-[18px]">{attachedFileLabel ?? 'file.mp'}</span> */}
+            {attachedFileLabel ? (
+              <span className="max-w-[180px] truncate font-ibm text-[16px]">{attachedFileLabel}</span>
+            ) : null}
           </button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="sr-only"
+            onChange={(event) => {
+              const file = event.target.files?.[0] ?? null
+              onAttachFileChange?.(file)
+              event.target.value = ''
+            }}
+          />
 
           <button
             type="button"

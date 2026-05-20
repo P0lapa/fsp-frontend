@@ -11,6 +11,7 @@ export type ContestStatus =
   | 'CANCELLED'
 
 export type ParticipationType = 'INDIVIDUAL' | 'TEAM'
+export type ParticipationStatus = 'PENDING' | 'CONFIRMED' | 'ENDED' | 'REJECTED' | 'DISQUALIFIED'
 
 export type ProgrammingLanguage = 'CPP' | 'JAVA' | 'PYTHON' | 'KOTLIN'
 
@@ -43,6 +44,7 @@ export type ContestFullResponseDto = ContestShortResponseDto & {
 
 export type ContestParticipantStatusDto = {
   registered: boolean
+  status: ParticipationStatus | null
   participantType: ParticipationType | null
   teamId: number | null
   teamName: string | null
@@ -84,6 +86,29 @@ export type ContestParticipantTaskDetailsDto = {
 export type SubmissionRequestDto = {
   language: ProgrammingLanguage
   solution: string
+}
+
+export type ContestParticipantSubmissionListItemDto = {
+  attemptId: number
+  attemptNumber: number
+  submissionTime: string
+  verdict: string
+  language: ProgrammingLanguage
+  passedTestsCount: number
+  solution: string
+}
+
+export type ContestParticipantSubmissionTestResultDto = {
+  orderNum: number
+  passed: boolean
+  verdict: string
+  reason: string | null
+  timeMs: number | null
+  memoryBytes: number | null
+}
+
+export type ContestParticipantSubmissionDetailsDto = {
+  testResults: ContestParticipantSubmissionTestResultDto[]
 }
 
 export type SubmissionTestResultDto = {
@@ -132,7 +157,7 @@ export type ParticipationResponseDto = {
   userId: number
   participantType: ParticipationType
   isCaptain: boolean
-  status: 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'DISQUALIFIED'
+  status: ParticipationStatus
   registeredAt: string
 }
 
@@ -205,6 +230,41 @@ async function apiAuthPost<T>(path: string, body?: unknown, options: ApiAuthOpti
   return (await response.json()) as T
 }
 
+async function apiAuthPostVoid(path: string, options: ApiAuthOptions = {}): Promise<void> {
+  const response = await authFetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+    },
+    silentErrorStatuses: options.silentErrorStatuses,
+  })
+
+  if (!response.ok) {
+    throw new Error(`API request failed with status ${response.status}`)
+  }
+}
+
+async function apiAuthPostFormData<T>(
+  path: string,
+  body: FormData,
+  options: ApiAuthOptions = {},
+): Promise<T> {
+  const response = await authFetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+    },
+    body,
+    silentErrorStatuses: options.silentErrorStatuses,
+  })
+
+  if (!response.ok) {
+    throw new Error(`API request failed with status ${response.status}`)
+  }
+
+  return (await response.json()) as T
+}
+
 async function apiAuthDelete(path: string): Promise<void> {
   const response = await authFetch(`${API_BASE_URL}${path}`, {
     method: 'DELETE',
@@ -241,6 +301,29 @@ export function getContestParticipantTaskDetails(
 ) {
   return apiAuthGet<ContestParticipantTaskDetailsDto>(
     `/contests/${contestId}/tasks/${taskId}`,
+    options,
+  )
+}
+
+export function getContestParticipantTaskSubmissions(
+  contestId: number,
+  taskId: number,
+  options?: ApiAuthOptions,
+) {
+  return apiAuthGet<ContestParticipantSubmissionListItemDto[]>(
+    `/contests/${contestId}/tasks/${taskId}/submissions`,
+    options,
+  )
+}
+
+export function getContestParticipantTaskSubmissionDetails(
+  contestId: number,
+  taskId: number,
+  attemptId: number,
+  options?: ApiAuthOptions,
+) {
+  return apiAuthGet<ContestParticipantSubmissionDetailsDto>(
+    `/contests/${contestId}/tasks/${taskId}/submissions/${attemptId}`,
     options,
   )
 }
@@ -285,6 +368,28 @@ export function submitContestTaskSolution(
     body,
     options,
   )
+}
+
+export function submitContestTaskSolutionFile(
+  contestId: number,
+  taskId: number,
+  file: File,
+  language: ProgrammingLanguage,
+  options?: ApiAuthOptions,
+) {
+  const formData = new FormData()
+  formData.append('language', language)
+  formData.append('file', file)
+
+  return apiAuthPostFormData<SubmissionResponseDto>(
+    `/contests/${contestId}/tasks/${taskId}/submissions`,
+    formData,
+    options,
+  )
+}
+
+export function finishContestParticipation(contestId: number, options?: ApiAuthOptions) {
+  return apiAuthPostVoid(`/contests/${contestId}/finish`, options)
 }
 
 export function cancelContestParticipation(contestId: number) {

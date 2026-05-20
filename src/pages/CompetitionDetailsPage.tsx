@@ -5,12 +5,10 @@ import {
   createContestTeam,
   getContestById,
   getContestParticipantStatus,
-  getMyContestParticipation,
   joinContestTeam,
   registerForContest,
   type ContestFullResponseDto,
   type ContestParticipantStatusDto,
-  type ParticipationResponseDto,
   type TeamInviteResponseDto,
 } from '../api/contests'
 import { useAuth } from '../auth/AuthContext'
@@ -34,14 +32,9 @@ type DetailsState =
 
 type ParticipantState =
   | { status: 'idle' }
+  | { status: 'loading' }
   | { status: 'error'; contestId: number; message: string }
   | { status: 'ready'; contestId: number; participant: ContestParticipantStatusDto }
-
-type ParticipationState =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'error'; message: string }
-  | { status: 'ready'; participation: ParticipationResponseDto | null }
 
 function extractInviteToken(value: string) {
   const trimmedValue = value.trim()
@@ -83,9 +76,6 @@ export function CompetitionDetailsPage() {
   const { isAuthenticated, isInitialized, login } = useAuth()
   const [state, setState] = useState<DetailsState>({ status: 'loading' })
   const [participantState, setParticipantState] = useState<ParticipantState>({ status: 'idle' })
-  const [participationState, setParticipationState] = useState<ParticipationState>({
-    status: 'idle',
-  })
   const [registrationError, setRegistrationError] = useState<string | null>(null)
   const [isRegistering, setIsRegistering] = useState(false)
   const [isCancellingParticipation, setIsCancellingParticipation] = useState(false)
@@ -135,39 +125,6 @@ export function CompetitionDetailsPage() {
 
     let isMounted = true
 
-    getMyContestParticipation(parsedContestId)
-      .then((participation) => {
-        if (isMounted) {
-          setParticipationState({ status: 'ready', participation })
-        }
-      })
-      .catch(() => {
-        if (isMounted) {
-          setParticipationState({
-            status: 'error',
-            message: 'Не удалось определить, участвуете ли вы в соревновании.',
-          })
-        }
-      })
-
-    return () => {
-      isMounted = false
-    }
-  }, [hasInvalidContestId, isAuthenticated, isInitialized, parsedContestId, state.status])
-
-  useEffect(() => {
-    if (
-      !isInitialized ||
-      !isAuthenticated ||
-      hasInvalidContestId ||
-      state.status !== 'ready' ||
-      state.contest.status !== 'REGISTRATION_OPEN'
-    ) {
-      return
-    }
-
-    let isMounted = true
-
     getContestParticipantStatus(parsedContestId)
       .then((participant) => {
         if (isMounted) {
@@ -179,7 +136,7 @@ export function CompetitionDetailsPage() {
           setParticipantState({
             status: 'error',
             contestId: parsedContestId,
-            message: 'Не удалось проверить статус регистрации.',
+            message: 'Не удалось проверить статус участия.',
           })
         }
       })
@@ -187,26 +144,27 @@ export function CompetitionDetailsPage() {
     return () => {
       isMounted = false
     }
-  }, [hasInvalidContestId, isAuthenticated, isInitialized, parsedContestId, state])
+  }, [hasInvalidContestId, isAuthenticated, isInitialized, parsedContestId, state.status])
 
   useEffect(() => {
     if (!isInitialized || !isAuthenticated || state.status !== 'ready') {
       return
     }
 
-    if (participationState.status !== 'ready' || !participationState.participation) {
+    if (participantState.status !== 'ready' || participantState.contestId !== parsedContestId) {
       return
     }
 
+    const participant = participantState.participant
     const hasContestStarted =
       state.contest.status === 'RUNNING' || Date.now() >= getContestTimestamp(state.contest.startAt)
 
-    if (!hasContestStarted) {
+    if (!participant.registered || participant.status === 'ENDED' || !hasContestStarted) {
       return
     }
 
     navigate(`/competitions/${state.contest.id}/live`, { replace: true })
-  }, [isAuthenticated, isInitialized, navigate, participationState, state])
+  }, [isAuthenticated, isInitialized, navigate, parsedContestId, participantState, state])
 
   function closeTeamModal() {
     setIsTeamModalOpen(false)
@@ -219,19 +177,9 @@ export function CompetitionDetailsPage() {
     setIsCopyingInvite(false)
   }
 
-  async function refreshParticipationState() {
-    const [participant, participation] = await Promise.all([
-      getContestParticipantStatus(parsedContestId).catch(() => null),
-      getMyContestParticipation(parsedContestId),
-    ])
-
-    if (participant) {
-      setParticipantState({ status: 'ready', contestId: parsedContestId, participant })
-    } else {
-      setParticipantState({ status: 'idle' })
-    }
-
-    setParticipationState({ status: 'ready', participation })
+  async function refreshParticipantState() {
+    const participant = await getContestParticipantStatus(parsedContestId)
+    setParticipantState({ status: 'ready', contestId: parsedContestId, participant })
   }
 
   async function handleRegisterButtonClick(contest: ContestFullResponseDto) {
@@ -254,7 +202,7 @@ export function CompetitionDetailsPage() {
       setRegistrationError(null)
       setIsRegistering(true)
       await registerForContest(parsedContestId)
-      await refreshParticipationState()
+      await refreshParticipantState()
     } catch {
       setRegistrationError('Не удалось зарегистрироваться на соревнование.')
     } finally {
@@ -267,7 +215,7 @@ export function CompetitionDetailsPage() {
       setRegistrationError(null)
       setIsCancellingParticipation(true)
       await cancelContestParticipation(parsedContestId)
-      await refreshParticipationState()
+      await refreshParticipantState()
     } catch {
       setRegistrationError('Не удалось отменить участие в соревновании.')
     } finally {
@@ -291,7 +239,7 @@ export function CompetitionDetailsPage() {
         name: trimmedTeamName,
       })
       setCreatedInvite(response.invite)
-      await refreshParticipationState()
+      await refreshParticipantState()
     } catch {
       setTeamModalError('Не удалось создать команду и зарегистрироваться.')
     } finally {
@@ -312,7 +260,7 @@ export function CompetitionDetailsPage() {
       setRegistrationError(null)
       setIsRegistering(true)
       await joinContestTeam(parsedContestId, { token })
-      await refreshParticipationState()
+      await refreshParticipantState()
       closeTeamModal()
     } catch {
       setTeamModalError('Не удалось присоединиться к команде по этому токену.')
@@ -371,8 +319,6 @@ export function CompetitionDetailsPage() {
 
   const { contest } = state
   const facts = getContestDetailFacts(contest)
-  const isParticipantStateCurrent =
-    participantState.status !== 'idle' && participantState.contestId === parsedContestId
   const participantInfo =
     participantState.status === 'ready' && participantState.contestId === parsedContestId
       ? participantState.participant
@@ -380,12 +326,9 @@ export function CompetitionDetailsPage() {
   const isParticipantStateLoading =
     isInitialized &&
     isAuthenticated &&
-    contest.status === 'REGISTRATION_OPEN' &&
-    !participantInfo &&
-    participantState.status !== 'error'
-  const participationInfo =
-    participationState.status === 'ready' ? participationState.participation : null
-  const isParticipating = Boolean(participationInfo)
+    (participantState.status === 'idle' || participantState.status === 'loading')
+  const hasEndedParticipation = participantInfo?.status === 'ENDED'
+  const isParticipating = Boolean(participantInfo?.registered) && !hasEndedParticipation
   const participationLabel =
     participantInfo?.teamName && contest.participationType === 'TEAM'
       ? `Вы участвуете в команде «${participantInfo.teamName}»`
@@ -395,7 +338,7 @@ export function CompetitionDetailsPage() {
     isInitialized &&
     (!isAuthenticated ||
       isParticipantStateLoading ||
-      (participantState.status === 'error' && isParticipantStateCurrent) ||
+      participantState.status === 'error' ||
       !!(participantInfo && !participantInfo.registered && participantInfo.canRegister))
   const canShowRegistrationButton =
     contest.status === 'REGISTRATION_OPEN' &&
@@ -419,12 +362,15 @@ export function CompetitionDetailsPage() {
           <div className="border-b border-[var(--color-border)] bg-[var(--color-accent)] px-6 py-5 font-jetbrains text-[22px] font-bold text-[var(--color-accent-contrast)] sm:flex sm:items-center sm:justify-between sm:gap-4 sm:text-[32px]">
             <span>{formatContestDateTime(contest.startAt)}</span>
 
-            {isInitialized &&
-            isAuthenticated &&
-            state.status === 'ready' &&
-            participationState.status === 'idle' ? (
+            {isInitialized && isAuthenticated && isParticipantStateLoading ? (
               <span className="mt-3 block text-sm font-normal tracking-[0.1em] sm:mt-0">
                 Проверяем участие...
+              </span>
+            ) : null}
+
+            {hasEndedParticipation ? (
+              <span className="mt-4 block text-base font-normal tracking-[0.08em] text-[var(--color-accent-contrast)] sm:mt-0 sm:text-lg">
+                Участие завершено
               </span>
             ) : null}
 
@@ -447,9 +393,7 @@ export function CompetitionDetailsPage() {
 
           <div className="grid gap-10 px-6 py-8 lg:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)] lg:px-8 lg:py-10">
             <div>
-              <div
-                className={`mb-4 font-jetbrains text-lg ${getContestStatusTone(contest.status)}`}
-              >
+              <div className={`mb-4 font-jetbrains text-lg ${getContestStatusTone(contest.status)}`}>
                 {getParticipationLabel(contest.participationType, contest.maxTeamSize)}
               </div>
 
@@ -472,9 +416,7 @@ export function CompetitionDetailsPage() {
                     <div className="mb-2 font-jetbrains text-sm tracking-[0.18em] text-[var(--color-accent)]">
                       ПРОБЛЕМНЫЙ НАБОР
                     </div>
-                    <div className="text-xl text-[var(--color-text)]">
-                      {contest.problemSet.title}
-                    </div>
+                    <div className="text-xl text-[var(--color-text)]">{contest.problemSet.title}</div>
                     <div className="mt-2 text-base text-[var(--color-text-muted)]">
                       Задач: {contest.problemSet.taskCount}
                     </div>
@@ -507,15 +449,9 @@ export function CompetitionDetailsPage() {
                       </p>
                     ) : null}
 
-                    {participantState.status === 'error' && isParticipantStateCurrent ? (
+                    {participantState.status === 'error' ? (
                       <p className="mt-3 text-sm text-[var(--color-danger)]">
                         {participantState.message}
-                      </p>
-                    ) : null}
-
-                    {participationState.status === 'error' ? (
-                      <p className="mt-3 text-sm text-[var(--color-danger)]">
-                        {participationState.message}
                       </p>
                     ) : null}
 

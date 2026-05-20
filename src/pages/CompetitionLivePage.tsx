@@ -1,20 +1,26 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
+  finishContestParticipation,
   getContestById,
   getContestParticipantStatus,
   getContestParticipantTaskDetails,
+  getContestParticipantTaskSubmissionDetails,
+  getContestParticipantTaskSubmissions,
   getContestParticipantTasks,
   submitContestTaskSolution,
+  submitContestTaskSolutionFile,
   type ContestFullResponseDto,
   type ContestParticipantStatusDto,
+  type ContestParticipantSubmissionDetailsDto,
+  type ContestParticipantSubmissionListItemDto,
   type ContestParticipantTaskDetailsDto,
   type ContestParticipantTaskListItemDto,
   type ProgrammingLanguage,
-  type SubmissionResponseDto,
 } from '../api/contests'
 import { useAuth } from '../auth/AuthContext'
 import { CompetitionLiveHeader } from '../components/competition-live/CompetitionLiveHeader'
+import { FinishCompetitionModal } from '../components/competition-live/FinishCompetitionModal'
 import { LiveNavigation } from '../components/competition-live/LiveNavigation'
 import { CompetitionSubmissionPanel } from '../components/competition-live/CompetitionSubmissionPanel'
 import {
@@ -45,6 +51,18 @@ type TaskDetailsState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
   | { status: 'ready'; task: ContestParticipantTaskDetailsDto }
+
+type SubmissionListState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'ready'; submissions: ContestParticipantSubmissionListItemDto[] }
+
+type SubmissionDetailsState =
+  | { status: 'idle' }
+  | { status: 'loading'; attemptId: number }
+  | { status: 'error'; attemptId: number; message: string }
+  | { status: 'ready'; attemptId: number; details: ContestParticipantSubmissionDetailsDto }
 
 const FORMAT_INPUT_FALLBACK = 'Стандартный ввод через stdin или input.txt.'
 const FORMAT_OUTPUT_FALLBACK = 'Стандартный вывод через stdout или output.txt.'
@@ -80,6 +98,30 @@ function getTaskDetailsErrorMessage(statusCode: number | null) {
   }
 
   return 'Не удалось загрузить условие выбранной задачи.'
+}
+
+function getSubmissionListErrorMessage(statusCode: number | null) {
+  if (statusCode === 403) {
+    return 'Нет доступа к истории отправок по этой задаче.'
+  }
+
+  if (statusCode === 404) {
+    return 'История отправок для этой задачи сейчас недоступна.'
+  }
+
+  return 'Не удалось загрузить отправки по выбранной задаче.'
+}
+
+function getSubmissionDetailsErrorMessage(statusCode: number | null) {
+  if (statusCode === 403) {
+    return 'Нет доступа к деталям этой попытки.'
+  }
+
+  if (statusCode === 404) {
+    return 'Попытка не найдена или больше недоступна.'
+  }
+
+  return 'Не удалось загрузить детали выбранной попытки.'
 }
 
 function getDefaultLanguage(
@@ -118,6 +160,7 @@ export function CompetitionLivePage() {
 }
 
 function CompetitionLivePageContent({ contestIdParam }: { contestIdParam: string | undefined }) {
+  const navigate = useNavigate()
   const { isAuthenticated, isInitialized, login } = useAuth()
   const { toggleTheme } = useTheme()
   const parsedContestId = Number(contestIdParam)
@@ -126,26 +169,37 @@ function CompetitionLivePageContent({ contestIdParam }: { contestIdParam: string
   const [contestState, setContestState] = useState<ContestState>({ status: 'loading' })
   const [taskListState, setTaskListState] = useState<TaskListState>({ status: 'idle' })
   const [taskDetailsState, setTaskDetailsState] = useState<TaskDetailsState>({ status: 'idle' })
+  const [submissionListState, setSubmissionListState] = useState<SubmissionListState>({
+    status: 'idle',
+  })
+  const [submissionDetailsState, setSubmissionDetailsState] = useState<SubmissionDetailsState>({
+    status: 'idle',
+  })
   const [participantStatus, setParticipantStatus] = useState<ContestParticipantStatusDto | null>(
     null,
   )
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null)
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState<number | null>(null)
   const [activeTab, setActiveTab] = useState<CompetitionTaskStatementTab>('statement')
   const [selectedLanguage, setSelectedLanguage] = useState<ProgrammingLanguage | null>(null)
   const [draftsByTaskId, setDraftsByTaskId] = useState<Record<number, string>>({})
+  const [filesByTaskId, setFilesByTaskId] = useState<Record<number, File | null>>({})
   const [cursor, setCursor] = useState({ line: 1, column: 1 })
   const [isTimerBlurred, setIsTimerBlurred] = useState(false)
-  const [localSubmissions, setLocalSubmissions] = useState<SubmissionResponseDto[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isFinishing, setIsFinishing] = useState(false)
+  const [isFinishModalOpen, setIsFinishModalOpen] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [pageNotice, setPageNotice] = useState<string | null>(null)
+  const [finishError, setFinishError] = useState<string | null>(null)
   const [nowMs, setNowMs] = useState(() => Date.now())
 
   const contest = contestState.status === 'ready' ? contestState.contest : null
   const tasks = taskListState.status === 'ready' ? taskListState.tasks : []
   const selectedTask = taskDetailsState.status === 'ready' ? taskDetailsState.task : null
-  const currentSourceCode =
-    selectedTaskId === null ? '' : (draftsByTaskId[selectedTaskId] ?? '')
+  const currentSourceCode = selectedTaskId === null ? '' : (draftsByTaskId[selectedTaskId] ?? '')
+  const currentAttachedFile = selectedTaskId === null ? null : (filesByTaskId[selectedTaskId] ?? null)
+  const submissions =
+    submissionListState.status === 'ready' ? submissionListState.submissions : []
 
   const formatInputText = FORMAT_INPUT_FALLBACK
   const formatOutputText = FORMAT_OUTPUT_FALLBACK
@@ -173,20 +227,22 @@ function CompetitionLivePageContent({ contestIdParam }: { contestIdParam: string
 
     getContestById(parsedContestId)
       .then((contestResponse) => {
-        if (isMounted) {
-          setContestState({ status: 'ready', contest: contestResponse })
-          setSelectedLanguage((current) =>
-            getDefaultLanguage(null, contestResponse, current),
-          )
+        if (!isMounted) {
+          return
         }
+
+        setContestState({ status: 'ready', contest: contestResponse })
+        setSelectedLanguage((current) => getDefaultLanguage(null, contestResponse, current))
       })
       .catch(() => {
-        if (isMounted) {
-          setContestState({
-            status: 'error',
-            message: 'Не удалось загрузить данные соревнования.',
-          })
+        if (!isMounted) {
+          return
         }
+
+        setContestState({
+          status: 'error',
+          message: 'Не удалось загрузить данные соревнования.',
+        })
       })
 
     return () => {
@@ -211,26 +267,30 @@ function CompetitionLivePageContent({ contestIdParam }: { contestIdParam: string
       getContestParticipantTasks(parsedContestId, { silentErrorStatuses: [403, 404] }),
     ])
       .then(([participantResponse, taskResponse]) => {
-        if (isMounted) {
-          setParticipantStatus(participantResponse)
-          setTaskListState({ status: 'ready', tasks: taskResponse })
-          setSelectedTaskId((current) => {
-            if (current && taskResponse.some((task) => task.id === current)) {
-              return current
-            }
-
-            return taskResponse[0]?.id ?? null
-          })
+        if (!isMounted) {
+          return
         }
+
+        setParticipantStatus(participantResponse)
+        setTaskListState({ status: 'ready', tasks: taskResponse })
+        setSelectedTaskId((current) => {
+          if (current !== null && taskResponse.some((task) => task.id === current)) {
+            return current
+          }
+
+          return taskResponse[0]?.id ?? null
+        })
       })
       .catch((error) => {
-        if (isMounted) {
-          setParticipantStatus(null)
-          setTaskListState({
-            status: 'error',
-            message: getAccessMessage(getStatusCodeFromError(error)),
-          })
+        if (!isMounted) {
+          return
         }
+
+        setParticipantStatus(null)
+        setTaskListState({
+          status: 'error',
+          message: getAccessMessage(getStatusCodeFromError(error)),
+        })
       })
 
     return () => {
@@ -241,7 +301,6 @@ function CompetitionLivePageContent({ contestIdParam }: { contestIdParam: string
   useEffect(() => {
     if (
       contestState.status !== 'ready' ||
-      taskListState.status !== 'ready' ||
       selectedTaskId === null ||
       !isInitialized ||
       !isAuthenticated
@@ -255,39 +314,73 @@ function CompetitionLivePageContent({ contestIdParam }: { contestIdParam: string
       silentErrorStatuses: [403, 404],
     })
       .then((taskResponse) => {
-        if (isMounted) {
-          setTaskDetailsState({ status: 'ready', task: taskResponse })
-          setSelectedLanguage((current) =>
-            getDefaultLanguage(taskResponse, contestState.contest, current),
-          )
+        if (!isMounted) {
+          return
         }
+
+        setTaskDetailsState({ status: 'ready', task: taskResponse })
+        setSelectedLanguage((current) => getDefaultLanguage(taskResponse, contestState.contest, current))
       })
       .catch((error) => {
-        if (isMounted) {
-          setTaskDetailsState({
-            status: 'error',
-            message: getTaskDetailsErrorMessage(getStatusCodeFromError(error)),
-          })
+        if (!isMounted) {
+          return
         }
+
+        setTaskDetailsState({
+          status: 'error',
+          message: getTaskDetailsErrorMessage(getStatusCodeFromError(error)),
+        })
       })
 
     return () => {
       isMounted = false
     }
-  }, [
-    contestState,
-    isAuthenticated,
-    isInitialized,
-    parsedContestId,
-    selectedTaskId,
-    taskListState.status,
-  ])
+  }, [contestState, isAuthenticated, isInitialized, parsedContestId, selectedTaskId])
+
+  useEffect(() => {
+    if (
+      contestState.status !== 'ready' ||
+      selectedTaskId === null ||
+      !isInitialized ||
+      !isAuthenticated
+    ) {
+      return
+    }
+
+    let isMounted = true
+
+    getContestParticipantTaskSubmissions(parsedContestId, selectedTaskId, {
+      silentErrorStatuses: [403, 404],
+    })
+      .then((submissionResponse) => {
+        if (!isMounted) {
+          return
+        }
+
+        setSubmissionListState({
+          status: 'ready',
+          submissions: submissionResponse,
+        })
+      })
+      .catch((error) => {
+        if (!isMounted) {
+          return
+        }
+
+        setSubmissionListState({
+          status: 'error',
+          message: getSubmissionListErrorMessage(getStatusCodeFromError(error)),
+        })
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [contestState.status, isAuthenticated, isInitialized, parsedContestId, selectedTaskId])
 
   const timerState = useMemo(() => {
     if (!contest) {
       return {
-        progress: 0,
-        elapsedSeconds: 0,
         timerText: '00.00.00',
         durationText: '00.00.00',
         timerColor: getContestTimerColor(0),
@@ -306,8 +399,6 @@ function CompetitionLivePageContent({ contestIdParam }: { contestIdParam: string
     const elapsedSeconds = Math.floor(elapsedMs / 1000)
 
     return {
-      progress,
-      elapsedSeconds,
       timerText: formatElapsedTime(elapsedSeconds),
       durationText: formatElapsedTime(durationSeconds),
       timerColor: getContestTimerColor(progress),
@@ -334,6 +425,78 @@ function CompetitionLivePageContent({ contestIdParam }: { contestIdParam: string
     }
   }
 
+  async function reloadTaskSubmissions(nextTaskId = selectedTaskId) {
+    if (nextTaskId === null) {
+      return
+    }
+
+    setSubmissionListState({ status: 'loading' })
+
+    try {
+      const nextSubmissions = await getContestParticipantTaskSubmissions(
+        parsedContestId,
+        nextTaskId,
+        {
+          silentErrorStatuses: [403, 404],
+        },
+      )
+
+      setSubmissionListState({
+        status: 'ready',
+        submissions: nextSubmissions,
+      })
+    } catch (error) {
+      setSubmissionListState({
+        status: 'error',
+        message: getSubmissionListErrorMessage(getStatusCodeFromError(error)),
+      })
+    }
+  }
+
+  async function handleSubmissionSelect(attemptId: number) {
+    if (selectedTaskId === null) {
+      return
+    }
+
+    if (selectedSubmissionId === attemptId) {
+      setSelectedSubmissionId(null)
+      setSubmissionDetailsState({ status: 'idle' })
+      return
+    }
+
+    setSelectedSubmissionId(attemptId)
+
+    if (
+      submissionDetailsState.status === 'ready' &&
+      submissionDetailsState.attemptId === attemptId
+    ) {
+      return
+    }
+
+    setSubmissionDetailsState({ status: 'loading', attemptId })
+
+    try {
+      const details = await getContestParticipantTaskSubmissionDetails(
+        parsedContestId,
+        selectedTaskId,
+        attemptId,
+        { silentErrorStatuses: [403, 404] },
+      )
+
+      setSubmissionDetailsState({
+        status: 'ready',
+        attemptId,
+        details,
+      })
+    } catch (error) {
+      setSubmissionDetailsState({
+        status: 'error',
+        attemptId,
+        message: getSubmissionDetailsErrorMessage(getStatusCodeFromError(error)),
+      })
+    }
+  }
+
   function handleSourceCodeChange(nextValue: string) {
     if (selectedTaskId === null) {
       return
@@ -345,32 +508,56 @@ function CompetitionLivePageContent({ contestIdParam }: { contestIdParam: string
     }))
   }
 
+  function handleAttachFileChange(file: File | null) {
+    if (selectedTaskId === null) {
+      return
+    }
+
+    setFilesByTaskId((current) => ({
+      ...current,
+      [selectedTaskId]: file,
+    }))
+  }
+
   async function handleSubmit() {
-    if (isSubmitting || selectedTaskId === null || !selectedLanguage || !participantStatus?.canSubmit) {
+    if (
+      isSubmitting ||
+      selectedTaskId === null ||
+      !selectedLanguage ||
+      !participantStatus?.canSubmit
+    ) {
       return
     }
 
     const solution = currentSourceCode.trim()
 
-    if (!solution) {
-      setSubmitError('Введите код решения перед отправкой.')
+    if (!currentAttachedFile && !solution) {
+      setSubmitError('Введите код решения или прикрепите файл перед отправкой.')
       return
     }
 
     try {
       setIsSubmitting(true)
       setSubmitError(null)
-      const submission = await submitContestTaskSolution(
-        parsedContestId,
-        selectedTaskId,
-        {
-          language: selectedLanguage,
-          solution: currentSourceCode,
-        },
-        { silentErrorStatuses: [400, 403, 404, 409] },
-      )
 
-      setLocalSubmissions((current) => [submission, ...current])
+      const submission = currentAttachedFile
+        ? await submitContestTaskSolutionFile(
+            parsedContestId,
+            selectedTaskId,
+            currentAttachedFile,
+            selectedLanguage,
+            { silentErrorStatuses: [400, 403, 404, 409] },
+          )
+        : await submitContestTaskSolution(
+            parsedContestId,
+            selectedTaskId,
+            {
+              language: selectedLanguage,
+              solution: currentSourceCode,
+            },
+            { silentErrorStatuses: [400, 403, 404, 409] },
+          )
+
       setTaskListState((current) => {
         if (current.status !== 'ready') {
           return current
@@ -378,18 +565,14 @@ function CompetitionLivePageContent({ contestIdParam }: { contestIdParam: string
 
         return {
           status: 'ready',
-          tasks: current.tasks.map((task) => {
-            if (task.id !== selectedTaskId) {
-              return task
-            }
-
-            return {
-              ...task,
-              bestVerdict: submission.verdict,
-            }
-          }),
+          tasks: current.tasks.map((task) =>
+            task.id === selectedTaskId
+              ? { ...task, bestVerdict: submission.verdict }
+              : task,
+          ),
         }
       })
+
       setTaskDetailsState((current) => {
         if (current.status !== 'ready' || current.task.id !== selectedTaskId) {
           return current
@@ -407,12 +590,21 @@ function CompetitionLivePageContent({ contestIdParam }: { contestIdParam: string
           },
         }
       })
+
+      setFilesByTaskId((current) => ({
+        ...current,
+        [selectedTaskId]: null,
+      }))
+
       setActiveTab('submissions')
+      setSelectedSubmissionId(null)
+      setSubmissionDetailsState({ status: 'idle' })
+      await reloadTaskSubmissions(selectedTaskId)
     } catch (error) {
       const statusCode = getStatusCodeFromError(error)
 
       if (statusCode === 400) {
-        setSubmitError('Сервер отклонил отправку. Проверьте язык и код решения.')
+        setSubmitError('Сервер отклонил отправку. Проверьте язык, код или прикреплённый файл.')
       } else if (statusCode === 403) {
         setSubmitError('Сейчас нельзя отправлять решения в этом соревновании.')
       } else if (statusCode === 404) {
@@ -424,6 +616,31 @@ function CompetitionLivePageContent({ contestIdParam }: { contestIdParam: string
       }
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  async function handleFinishCompetition() {
+    try {
+      setIsFinishing(true)
+      setFinishError(null)
+      await finishContestParticipation(parsedContestId, {
+        silentErrorStatuses: [400, 403, 404, 409],
+      })
+      navigate(`/competitions/${parsedContestId}`)
+    } catch (error) {
+      const statusCode = getStatusCodeFromError(error)
+
+      if (statusCode === 403) {
+        setFinishError('Сейчас нельзя завершить участие в этом соревновании.')
+      } else if (statusCode === 404) {
+        setFinishError('Соревнование больше недоступно.')
+      } else if (statusCode === 409) {
+        setFinishError('Участие уже завершено или состояние соревнования изменилось.')
+      } else {
+        setFinishError('Не удалось завершить участие. Попробуйте ещё раз.')
+      }
+    } finally {
+      setIsFinishing(false)
     }
   }
 
@@ -468,7 +685,7 @@ function CompetitionLivePageContent({ contestIdParam }: { contestIdParam: string
           <div className="mb-3 font-jetbrains text-xs uppercase tracking-[0.18em] text-[var(--color-folder-label)]">
             Live Access
           </div>
-          <h1 className="font-8bits text-2xl text-[var(--color-text)]">{readyContest.title}</h1>
+          <h1 className="font-jetbrains text-2xl text-[var(--color-text)]">{readyContest.title}</h1>
           <p className="mt-4 max-w-2xl font-ibm text-base leading-[1.7] text-[var(--color-text-muted)]">
             Для участия в live-режиме нужно войти в аккаунт и иметь доступ к задачам соревнования.
           </p>
@@ -492,6 +709,7 @@ function CompetitionLivePageContent({ contestIdParam }: { contestIdParam: string
     )
   }
 
+  const canFinish = participantStatus?.status !== 'ENDED' && Boolean(participantStatus?.registered)
   const canSubmit =
     selectedTask !== null &&
     selectedLanguage !== null &&
@@ -504,18 +722,31 @@ function CompetitionLivePageContent({ contestIdParam }: { contestIdParam: string
   const isTaskDetailsLoading =
     selectedTaskId !== null &&
     (taskDetailsState.status === 'idle' || taskDetailsState.status === 'loading')
+  const isSubmissionsLoading =
+    selectedTaskId !== null &&
+    (submissionListState.status === 'idle' || submissionListState.status === 'loading')
+  const isSubmissionDetailsLoading =
+    selectedSubmissionId !== null &&
+    submissionDetailsState.status === 'loading' &&
+    submissionDetailsState.attemptId === selectedSubmissionId
+  const submissionDetailsError =
+    selectedSubmissionId !== null &&
+    submissionDetailsState.status === 'error' &&
+    submissionDetailsState.attemptId === selectedSubmissionId
+      ? submissionDetailsState.message
+      : null
+  const selectedSubmissionDetails =
+    selectedSubmissionId !== null &&
+    submissionDetailsState.status === 'ready' &&
+    submissionDetailsState.attemptId === selectedSubmissionId
+      ? submissionDetailsState.details
+      : null
 
   return (
     <div>
       <LiveNavigation />
 
       <div className="mx-auto max-w-[1600px] px-4 py-3 sm:px-6 md:px-8 lg:px-10 lg:py-4">
-        {pageNotice ? (
-          <div className="mb-4 rounded-[10px] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-4 py-3 font-ibm text-sm text-[var(--color-text-muted)]">
-            {pageNotice}
-          </div>
-        ) : null}
-
         {submitError ? (
           <div className="mb-4 rounded-[10px] border border-[var(--color-danger)] bg-[color:color-mix(in_srgb,var(--color-surface)_84%,var(--color-danger)_16%)] px-4 py-3 font-ibm text-sm text-[var(--color-danger)]">
             {submitError}
@@ -531,9 +762,11 @@ function CompetitionLivePageContent({ contestIdParam }: { contestIdParam: string
             isTimerBlurred={isTimerBlurred}
             onToggleTimerBlur={() => setIsTimerBlurred((current) => !current)}
             onToggleTheme={toggleTheme}
-            onTerminate={() =>
-              setPageNotice('Кнопка завершения турнира пока работает как визуальная заглушка.')
-            }
+            onTerminate={() => {
+              setFinishError(null)
+              setIsFinishModalOpen(true)
+            }}
+            terminateDisabled={!canFinish || isFinishing}
           />
 
           <div className="grid gap-x-4 gap-y-3 xl:grid-cols-[86px_minmax(0,1fr)_minmax(0,1fr)]">
@@ -548,6 +781,9 @@ function CompetitionLivePageContent({ contestIdParam }: { contestIdParam: string
 
                   setSelectedTaskId(taskId)
                   setTaskDetailsState({ status: 'idle' })
+                  setSubmissionListState({ status: 'idle' })
+                  setSubmissionDetailsState({ status: 'idle' })
+                  setSelectedSubmissionId(null)
                   setActiveTab('statement')
                   setSubmitError(null)
                   setCursor(getCursorPosition(draftsByTaskId[taskId] ?? ''))
@@ -557,13 +793,24 @@ function CompetitionLivePageContent({ contestIdParam }: { contestIdParam: string
 
             <CompetitionTaskStatement
               task={selectedTask}
-              submissions={localSubmissions}
+              submissions={submissions}
+              activeSubmissionId={selectedSubmissionId}
+              submissionDetails={selectedSubmissionDetails}
               activeTab={activeTab}
               onTabChange={setActiveTab}
+              onSubmissionSelect={(attemptId) => {
+                void handleSubmissionSelect(attemptId)
+              }}
               formatInputText={formatInputText}
               formatOutputText={formatOutputText}
               isLoading={isTaskDetailsLoading}
               error={taskDetailsState.status === 'error' ? taskDetailsState.message : null}
+              isSubmissionsLoading={isSubmissionsLoading}
+              submissionsError={
+                submissionListState.status === 'error' ? submissionListState.message : null
+              }
+              isSubmissionDetailsLoading={isSubmissionDetailsLoading}
+              submissionDetailsError={submissionDetailsError}
               onRetry={() => void reloadTaskDetails()}
               isBlurred={false}
             />
@@ -585,10 +832,8 @@ function CompetitionLivePageContent({ contestIdParam }: { contestIdParam: string
               cursorColumn={cursor.column}
               onCursorChange={setCursor}
               onSubmit={() => void handleSubmit()}
-              onAttachFile={() =>
-                setPageNotice('Загрузка файла скоро появится отдельной модалкой.')
-              }
-              attachedFileLabel={null}
+              onAttachFileChange={handleAttachFileChange}
+              attachedFileLabel={currentAttachedFile?.name ?? null}
               isSubmitting={isSubmitting}
               canSubmit={canSubmit}
             />
@@ -615,6 +860,21 @@ function CompetitionLivePageContent({ contestIdParam }: { contestIdParam: string
           ) : null}
         </div>
       </div>
+
+      <FinishCompetitionModal
+        isOpen={isFinishModalOpen}
+        isSubmitting={isFinishing}
+        error={finishError}
+        onClose={() => {
+          if (isFinishing) {
+            return
+          }
+
+          setIsFinishModalOpen(false)
+          setFinishError(null)
+        }}
+        onConfirm={() => void handleFinishCompetition()}
+      />
     </div>
   )
 }
